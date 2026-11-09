@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C-Tekken P2P Multiplayer Arcade</title>
+    <!-- Include PeerJS for browser-to-browser P2P networking -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f111a;
+            --panel-bg: #1a1e29;
+            --border-color: #2e364f;
+            --accent-p1: #3b82f6;
+            --accent-p2: #ef4444;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            padding: 15px;
+        }
+
+        header { text-align: center; margin-bottom: 15px; }
+
+        h1 {
+            color: #f87171;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.5rem;
+            margin-bottom: 3px;
+            text-shadow: 0 0 10px rgba(248, 113, 113, 0.4);
+        }
+
+        .subtitle { color: var(--text-muted); font-size: 0.75rem; }
+
+        /* Lobby Screen styling */
+        #lobby-screen {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            padding: 25px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            margin-top: 20px;
+        }
+
+        .lobby-group { margin-bottom: 20px; }
+        .lobby-group input {
+            width: 100%;
+            padding: 12px;
+            background: #0f111a;
+            border: 1px solid var(--border-color);
+            color: white;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            text-align: center;
+            letter-spacing: 4px;
+            margin-top: 8px;
+            font-family: inherit;
+        }
+
+        .lobby-btn {
+            width: 100%;
+            padding: 12px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+        .lobby-btn:hover { background: #1d4ed8; }
+        .join-btn { background: #16a34a; }
+        .join-btn:hover { background: #15803d; }
+
+        #room-display {
+            font-size: 1.5rem;
+            letter-spacing: 4px;
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px dashed rgba(251, 191, 36, 0.4);
+            margin: 10px 0;
+        }
+
+        /* Game UI */
+        #game-container { display: none; width: 100%; max-width: 600px; flex-direction: column; align-items: center; }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 12px;
+            background: var(--panel-bg);
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .p1-info { color: var(--accent-p1); }
+        .p2-info { color: var(--accent-p2); }
+
+        #turn-indicator {
+            font-size: 1rem;
+            margin-bottom: 12px;
+            color: #fbbf24;
+            font-weight: bold;
+            text-align: center;
+            background: rgba(251, 191, 36, 0.1);
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            width: 100%;
+        }
+        
+        #game-screen {
+            background-color: #050508;
+            color: #4ade80;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid var(--border-color);
+            font-size: 13px;
+            line-height: 1.25;
+            white-space: pre;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+            margin-bottom: 20px;
+            overflow-x: auto;
+            max-width: 100%;
+        }
+
+        .controls-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            background: var(--panel-bg);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .controls-title {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 55px);
+            grid-template-rows: repeat(2, 45px);
+            gap: 5px;
+        }
+
+        .action-pad {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            font-family: inherit;
+            background-color: #27272a;
+            color: white;
+            border: 1px solid #3f3f46;
+            border-radius: 6px;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        button:active { transform: scale(0.95); background-color: #52525b; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .btn-up { grid-column: 2; grid-row: 1; }
+        .btn-left { grid-column: 1; grid-row: 2; }
+        .btn-down { grid-column: 2; grid-row: 2; }
+        .btn-right { grid-column: 3; grid-row: 2; }
+
+        .action-btn-punch { background-color: #1d4ed8; border-color: #3b82f6; flex: 1; }
+        .action-btn-kick { background-color: #b91c1c; border-color: #ef4444; flex: 1; }
+
+        #role-badge {
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: #334155;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+
+        #log-msg { color: #f87171; font-size: 0.8rem; margin-top: 8px; min-height: 18px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>⚔️ C-Tekken P2P Arcade ⚔️</h1>
+        <div class="subtitle">GitHub Pages Multiplayer Engine</div>
+    </header>
+
+    <!-- LOBBY SCREEN -->
+    <div id="lobby-screen">
+        <div id="role-badge">Select Mode</div>
+        <div class="lobby-group">
+            <button class="lobby-btn" onclick="createRoom()">🏠 Create Room (Player 1)</button>
+        </div>
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
+        <div class="lobby-group">
+            <label style="font-size: 0.85rem; color: var(--text-muted);">Have a Room Code?</label>
+            <input type="text" id="code-input" placeholder="e.g. 4829" maxlength="6">
+            <button class="lobby-btn join-btn" onclick="joinRoom()">🎮 Join Room (Player 2)</button>
+        </div>
+        <div id="room-setup-area" style="margin-top: 15px; display: none;">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Share this code with your friend:</div>
+            <div id="room-display">----</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);" id="connection-status">Waiting for Player 2 to join...</div>
+        </div>
+        <div id="log-msg"></div>
+    </div>
+
+    <!-- GAME CONTAINER -->
+    <div id="game-container">
+        <div id="player-role-indicator" style="font-size: 0.85rem; margin-bottom: 8px; font-weight: bold; color: #fbbf24;"></div>
+        
+        <div class="status-bar">
+            <div class="p1-info">Player 1 (O): <span id="p1-hp">100</span> HP</div>
+            <div class="p2-info">Player 2 (o): <span id="p2-hp">100</span> HP</div>
+        </div>
+
+        <div id="turn-indicator">Connecting...</div>
+        
+        <div id="game-screen"></div>
+
+        <div class="controls-container">
+            <div class="controls-title" id="control-instruction">Touch Controls</div>
+            <div class="dpad">
+                <button class="btn-up" onclick="sendMove('w')">⬆️</button>
+                <button class="btn-left" onclick="sendMove('a')">⬅️</button>
+                <button class="btn-down" onclick="sendMove('s')">⬇️</button>
+                <button class="btn-right" onclick="sendMove('d')">➡️</button>
+            </div>
+            <div class="action-pad">
+                <button class="action-btn-punch" onclick="sendMove('f')">🥊 PUNCH</button>
+                <button class="action-btn-kick" onclick="sendMove('g')">🥋 KICK</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let peer = null;
+        let conn = null;
+        let myRole = null; // 'p1' or 'p2'
+
+        // Exact C grid map structure
+        const initialMap = [
+            "#############################################",
+            "#                     #                     #",
+            "#                     #                     #",
+            "#                     #                     #",
+            "#                     #                     #",
+            "#                     #                     #",
+            "#                     #                     #",
+            "#                     #                     #",
+            "#                     #                     #",
+            "#                     #                     #",
+            "#                     #                     #",
+            "#############################################"
+        ];
+
+        let grid, f1, f2, m_toggle, gameOver;
+
+        function initGameState() {
+            grid = initialMap.map(row => row.split(''));
+            f1 = { x: 5, y: 5, health: 100 };
+            f2 = { x: 5, y: 33, health: 100 };
+            grid[f1.x][f1.y] = 'O';
+            grid[f2.x][f2.y] = 'o';
+            m_toggle = 0;
+            gameOver = false;
+        }
+
+        // --- P2P NETWORK SETUP (PeerJS) ---
+        function createRoom() {
+            let randomCode = Math.floor(1000 + Math.random() * 9000).toString();
+            // Prefix to avoid peer ID collisions globally on PeerServer
+            let peerId = "ctekken-" + randomCode;
+            
+            peer = new Peer(peerId);
+            myRole = 'p1';
+
+            peer.on('open', (id) => {
+                document.getElementById('room-setup-area').style.display = 'block';
+                document.getElementById('room-display').innerText = randomCode;
+                document.getElementById('role-badge').innerText = "Hosting Room...";
+            });
+
+            peer.on('connection', (connection) => {
+                conn = connection;
+                document.getElementById('connection-status').innerText = "Player 2 Connected! Starting game...";
+                setupConnectionHandlers();
+                
+                setTimeout(() => {
+                    initGameState();
+                    startGameUI();
+                    syncStateToPeer();
+                }, 1000);
+            });
+
+            peer.on('error', (err) => {
+                document.getElementById('log-msg').innerText = "Error: Room code might be taken. Try again.";
+            });
+        }
+
+        function joinRoom() {
+            let inputCode = document.getElementById('code-input').value.trim();
+            if (inputCode.length < 4) {
+                document.getElementById('log-msg').innerText = "Enter a valid 4-digit room code!";
+                return;
+            }
+
+            let hostPeerId = "ctekken-" + inputCode;
+            peer = new Peer();
+            myRole = 'p2';
+
+            peer.on('open', (id) => {
+                document.getElementById('role-badge').innerText = "Connecting to room...";
+                conn = peer.connect(hostPeerId);
+                
+                conn.on('open', () => {
+                    setupConnectionHandlers();
+                    startGameUI();
+                });
+            });
+
+            peer.on('error', (err) => {
+                document.getElementById('log-msg').innerText = "Could not connect. Check code or host status.";
+            });
+        }
+
+        function setupConnectionHandlers() {
+            conn.on('data', (data) => {
+                if (data.type === 'STATE_SYNC') {
+                    grid = data.grid;
+                    f1 = data.f1;
+                    f2 = data.f2;
+                    m_toggle = data.m_toggle;
+                    gameOver = data.gameOver;
+                    render();
+                }
+            });
+
+            conn.on('close', () => {
+                alert("The other player disconnected!");
+                location.reload();
+            });
+        }
+
+        function startGameUI() {
+            document.getElementById('lobby-screen').style.display = 'none';
+            document.getElementById('game-container').style.display = 'flex';
+            
+            let roleIndicator = document.getElementById('player-role-indicator');
+            if (myRole === 'p1') {
+                roleIndicator.innerText = "You are Player 1 (Blue O)";
+                roleIndicator.style.color = "#3b82f6";
+            } else {
+                roleIndicator.innerText = "You are Player 2 (Red o)";
+                roleIndicator.style.color = "#ef4444";
+            }
+            initGameState();
+            render();
+        }
+
+        function syncStateToPeer() {
+            if (conn && conn.open) {
+                conn.send({
+                    type: 'STATE_SYNC',
+                    grid: grid,
+                    f1: f1,
+                    f2: f2,
+                    m_toggle: m_toggle,
+                    gameOver: gameOver
+                });
+            }
+        }
+
+        // --- GAME ENGINE LOGIC ---
+        function sendMove(m) {
+            if (gameOver) return;
+
+            // Enforce turn based on role
+            if (myRole === 'p1' && m_toggle !== 0) {
+                alert("Wait for Player 2's turn!");
+                return;
+            }
+            if (myRole === 'p2' && m_toggle !== 1) {
+                alert("Wait for Player 1's turn!");
+                return;
+            }
+
+            executeMove(m);
+
+            // If Player 1, sync state to Player 2. If Player 2, send move to Player 1 or sync state
+            if (myRole === 'p1') {
+                syncStateToPeer();
+            } else {
+                // Send move action or full state update to P1 host
+                syncStateToPeer();
+            }
+        }
+
+        function executeMove(m) {
+            if (m === 'a') {
+                if (m_toggle === 0) {
+                    grid[f1.x][f1.y] = ' ';
+                    f1.y -= 1;
+                    grid[f1.x][f1.y] = 'O';
+                    m_toggle = 1;
+                } else {
+                    grid[f2.x][f2.y] = ' ';
+                    f2.y -= 1;
+                    grid[f2.x][f2.y] = 'o';
+                    m_toggle = 0;
+                }
+            } else if (m === 'd') {
+                if (m_toggle === 0) {
+                    grid[f1.x][f1.y] = ' ';
+                    f1.y += 1;
+                    grid[f1.x][f1.y] = 'O';
+                    m_toggle = 1;
+                } else {
+                    grid[f2.x][f2.y] = ' ';
+                    f2.y += 1;
+                    grid[f2.x][f2.y] = 'o';
+                    m_toggle = 0;
+                }
+            } else if (m === 'w') {
+                if (m_toggle === 0) {
+                    grid[f1.x][f1.y] = ' ';
+                    f1.x -= 1;
+                    grid[f1.x][f1.y] = 'O';
+                    m_toggle = 1;
+                } else {
+                    grid[f2.x][f2.y] = ' ';
+                    f2.x -= 1;
+                    grid[f2.x][f2.y] = 'o';
+                    m_toggle = 0;
+                }
+            } else if (m === 's') {
+                if (m_toggle === 0) {
+                    grid[f1.x][f1.y] = ' ';
+                    f1.x += 1;
+                    grid[f1.x][f1.y] = 'O';
+                    m_toggle = 1;
+                } else {
+                    grid[f2.x][f2.y] = ' ';
+                    f2.x += 1;
+                    grid[f2.x][f2.y] = 'o';
+                    m_toggle = 0;
+                }            
+            } else if (m === 'f') {
+                if (m_toggle === 0) {
+                    if (f1.x === f2.x) f2.health -= 50;
+                    else f2.health -= 20;
+                    m_toggle = 1;
+                } else {
+                    if (f1.x === f2.x) f1.health -= 50;
+                    else f1.health -= 20;
+                    m_toggle = 0;
+                }
+            } else if (m === 'g') {
+                if (m_toggle === 0) {
+                    if (f1.x === f2.x) f2.health -= 80;
+                    else f2.health -= 30;
+                    m_toggle = 1;
+                } else {
+                    if (f1.x === f2.x) f1.health -= 80;
+                    else f1.health -= 30;
+                    m_toggle = 0;
+                }
+            }
+
+            if (f2.health <= 0) {
+                gameOver = true;
+            } else if (f1.health <= 0) {
+                gameOver = true;
+            }
+
+            render();
+        }
+
+        function render() {
+            if (!grid) return;
+            let screenString = "";
+            for (let i = 0; i < grid.length; i++) {
+                screenString += grid[i].join('') + "\n";
+            }
+            document.getElementById("game-screen").innerText = screenString;
+            document.getElementById("p1-hp").innerText = f1.health;
+            document.getElementById("p2-hp").innerText = f2.health;
+
+            let turnText = document.getElementById("turn-indicator");
+            if (gameOver) {
+                if (f2.health <= 0) {
+                    turnText.innerText = "🏆 Player 1 Wins!!";
+                    turnText.style.color = "#3b82f6";
+                } else {
+                    turnText.innerText = "🏆 Player 2 Wins!!";
+                    turnText.style.color = "#ef4444";
+                }
+                return;
+            }
+
+            if (m_toggle === 0) {
+                turnText.innerText = "Player 1's Turn (O)";
+                turnText.style.color = "#3b82f6";
+            } else {
+                turnText.innerText = "Player 2's Turn (o)";
+                turnText.style.color = "#ef4444";
+            }
+        }
+
+        // Keyboard support as well
+        window.addEventListener('keydown', (e) => {
+            let key = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd', 'f', 'g'].includes(key)) {
+                sendMove(key);
+            }
+        });
+    </script>
+</body>
+</html>
